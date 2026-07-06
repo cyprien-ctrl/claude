@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using ScreenRecorderLib;
 
 namespace ScreenRecorderApp.Services;

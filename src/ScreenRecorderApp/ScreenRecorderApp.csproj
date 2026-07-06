@@ -5,7 +5,7 @@
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>ScreenRecorderApp</AssemblyName>
     <RootNamespace>ScreenRecorderApp</RootNamespace>
     <UseWindowsForms>true</UseWindowsForms>
@@ -21,17 +21,6 @@
 
   <ItemGroup>
     <PackageReference Include="ScreenRecorderLib" Version="6.3.0" />
-  </ItemGroup>
-
-  <!--
-    Activer WPF et WinForms ensemble importe automatiquement System.Windows (WPF) et
-    System.Windows.Forms (WinForms), qui définissent tous les deux "Application",
-    "MessageBox", etc. On retire l'import automatique de WinForms ; le seul type
-    WinForms utilisé (FolderBrowserDialog, pour la boîte de choix de dossier) est déjà
-    référencé avec son nom complet dans le code.
-  -->
-  <ItemGroup>
-    <Using Remove="System.Windows.Forms" />
   </ItemGroup>
 
 </Project>
