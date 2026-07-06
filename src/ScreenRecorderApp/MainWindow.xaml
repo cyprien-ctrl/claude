@@ -1,0 +1,57 @@
+<Window x:Class="ScreenRecorderApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Enregistreur d'écran"
+        Height="620" Width="460"
+        MinHeight="620" MinWidth="460"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Enregistreur d'écran" FontSize="20" FontWeight="Bold" Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="1" x:Name="SettingsPanel">
+            <GroupBox Header="Écran" Margin="0,0,0,10">
+                <ComboBox x:Name="ScreenComboBox" Margin="8"/>
+            </GroupBox>
+
+            <GroupBox Header="Caméra" Margin="0,0,0,10">
+                <StackPanel Margin="8">
+                    <CheckBox x:Name="WebcamCheckBox" Content="Inclure la caméra (incrustée en bas à droite)" Margin="0,0,0,8"/>
+                    <ComboBox x:Name="WebcamComboBox"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Micro" Margin="0,0,0,10">
+                <StackPanel Margin="8">
+                    <CheckBox x:Name="MicrophoneCheckBox" Content="Inclure le micro" Margin="0,0,0,8"/>
+                    <ComboBox x:Name="MicrophoneComboBox"/>
+                </StackPanel>
+            </GroupBox>
+
+            <GroupBox Header="Dossier de sortie">
+                <StackPanel Margin="8" Orientation="Horizontal">
+                    <TextBox x:Name="OutputFolderTextBox" Width="220" IsReadOnly="True" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+                    <Button Content="Choisir..." Width="80" Click="ChooseFolderButton_Click" Margin="0,0,8,0"/>
+                    <Button Content="Ouvrir" Width="70" Click="OpenFolderButton_Click"/>
+                </StackPanel>
+            </GroupBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,8">
+            <Button x:Name="RecordButton" Content="Enregistrer" Width="140" Height="42" FontSize="15" Click="RecordButton_Click" Margin="0,0,12,0"/>
+            <Button x:Name="RestartButton" Content="Recommencer" Width="140" Height="42" FontSize="15" Click="RestartButton_Click" IsEnabled="False"
+                    ToolTip="Annule la vidéo en cours et relance immédiatement un nouvel enregistrement avec les mêmes réglages."/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3">
+            <TextBlock x:Name="ElapsedText" Text="00:00:00" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+            <TextBlock x:Name="StatusText" Text="Prêt." TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
+        </StackPanel>
+    </Grid>
+</Window>
