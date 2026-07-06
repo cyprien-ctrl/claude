@@ -1,0 +1,24 @@
+<Window x:Class="ScreenRecorderApp.Windows.WebcamOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Topmost="True"
+        Focusable="False"
+        WindowStartupLocation="Manual">
+    <Grid>
+        <!-- Backing disc (shown until the first camera frame arrives) -->
+        <Ellipse x:Name="Backing" Fill="#111119"/>
+        <!-- Live camera, filled into the circle -->
+        <Ellipse x:Name="CameraCircle" Margin="5">
+            <Ellipse.Fill>
+                <ImageBrush x:Name="CameraBrush" Stretch="UniformToFill"/>
+            </Ellipse.Fill>
+        </Ellipse>
+        <!-- Accent ring on top -->
+        <Ellipse Stroke="#5B8CFF" StrokeThickness="4"/>
+    </Grid>
+</Window>

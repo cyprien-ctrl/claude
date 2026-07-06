@@ -8,14 +8,12 @@ namespace ScreenRecorderApp.Services;
 public sealed class RecordingSettings
 {
     public required string ScreenDeviceName { get; init; }
-    public bool IncludeWebcam { get; init; }
-    public string? WebcamDeviceName { get; init; }
     public bool IncludeMicrophone { get; init; }
     public string? MicrophoneDeviceName { get; init; }
     public required string OutputFolder { get; init; }
 
     public static string DefaultOutputFolder =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "ScreenRecorderApp");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "ScreenRecorder");
 }
 
 public sealed class RecordingCompletedEventArgs(string filePath) : EventArgs
@@ -31,9 +29,12 @@ public sealed class RecordingErrorEventArgs(string error) : EventArgs
 }
 
 /// <summary>
-/// Wraps ScreenRecorderLib's Recorder. "Restart" has no dedicated API in the library,
-/// so it is implemented as stop -> discard the finished file -> start a new recording
-/// with the same settings.
+/// Wraps ScreenRecorderLib's Recorder for the screen + microphone tracks. The webcam is
+/// rendered by a separate on-screen window (see WebcamOverlayWindow) so it can be circular;
+/// it is captured naturally by the display recording.
+///
+/// "Restart" has no dedicated API in the library, so it is stop -> discard the finished
+/// file -> start a new recording with the same settings.
 /// </summary>
 public sealed class RecordingService : IDisposable
 {
@@ -136,17 +137,6 @@ public sealed class RecordingService : IDisposable
 
     private static RecorderOptions BuildOptions(RecordingSettings settings)
     {
-        var overlays = new List<RecordingOverlayBase>();
-        if (settings.IncludeWebcam && !string.IsNullOrEmpty(settings.WebcamDeviceName))
-        {
-            overlays.Add(new VideoCaptureOverlay(settings.WebcamDeviceName)
-            {
-                AnchorPoint = Anchor.BottomRight,
-                Offset = new ScreenSize(24, 24),
-                Size = new ScreenSize(320, 240)
-            });
-        }
-
         return new RecorderOptions
         {
             SourceOptions = new SourceOptions
@@ -155,10 +145,6 @@ public sealed class RecordingService : IDisposable
                 {
                     new DisplayRecordingSource(settings.ScreenDeviceName)
                 }
-            },
-            OverlayOptions = new OverLayOptions
-            {
-                Overlays = overlays
             },
             OutputOptions = new OutputOptions
             {
