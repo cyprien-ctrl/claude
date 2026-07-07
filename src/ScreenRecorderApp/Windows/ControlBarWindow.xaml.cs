@@ -1,6 +1,5 @@
 using System;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using ScreenRecorderApp.Interop;
@@ -49,14 +48,6 @@ public partial class ControlBarWindow : Window
     {
         PauseButton.Content = paused ? "▶" : "⏸";
         RecordingDot.Fill = paused ? Brushes.Orange : Brushes.Red;
-    }
-
-    private void RootBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == MouseButton.Left)
-        {
-            try { DragMove(); } catch { /* only valid while the left button is down */ }
-        }
     }
 
     private void StopButton_Click(object sender, RoutedEventArgs e) => StopRequested?.Invoke(this, EventArgs.Empty);

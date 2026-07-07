@@ -12,6 +12,9 @@ public sealed class RecordingSettings
     public string? MicrophoneDeviceName { get; init; }
     public required string OutputFolder { get; init; }
 
+    /// <summary>Optional crop (pixels, display-relative) to exclude the taskbar from the video.</summary>
+    public CropRect? Crop { get; init; }
+
     public static string DefaultOutputFolder =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "ScreenRecorder");
 }
@@ -169,14 +172,18 @@ public sealed class RecordingService : IDisposable
 
     private static RecorderOptions BuildOptions(RecordingSettings settings)
     {
+        var display = new DisplayRecordingSource(settings.ScreenDeviceName);
+        if (settings.Crop is { } crop)
+        {
+            // Record only the work area so the taskbar (visible on screen) stays out of the video.
+            display.SourceRect = new ScreenRect(crop.X, crop.Y, crop.Width, crop.Height);
+        }
+
         return new RecorderOptions
         {
             SourceOptions = new SourceOptions
             {
-                RecordingSources = new List<RecordingSourceBase>
-                {
-                    new DisplayRecordingSource(settings.ScreenDeviceName)
-                }
+                RecordingSources = new List<RecordingSourceBase> { display }
             },
             OutputOptions = new OutputOptions
             {

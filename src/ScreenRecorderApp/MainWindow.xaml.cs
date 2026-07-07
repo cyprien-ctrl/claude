@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     // Values captured when the user hits record, applied after the countdown finishes.
     private RecordingSettings? _pendingSettings;
     private ScreenBounds _pendingScreenBounds;
+    private ScreenBounds _pendingWorkArea;
     private bool _pendingCameraEnabled;
     private int _pendingCameraIndex;
 
@@ -46,9 +47,6 @@ public partial class MainWindow : Window
         _recordingService.RecordingStarted += (_, _) => Dispatcher.Invoke(OnRecordingStarted);
         _recordingService.RecordingCompleted += (_, e) => Dispatcher.Invoke(() => OnRecordingCompleted(e.FilePath));
         _recordingService.RecordingFailed += (_, e) => Dispatcher.Invoke(() => OnRecordingFailed(e.Error));
-
-        // Safety net: never leave the user's taskbar hidden if the process exits unexpectedly.
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => TaskbarService.RestoreIfHidden();
 
         OutputPathText.Text = _outputFolder;
         LoadDevices();
@@ -175,10 +173,13 @@ public partial class MainWindow : Window
             ScreenDeviceName = screen.Id,
             IncludeMicrophone = includeMic,
             MicrophoneDeviceName = includeMic ? ((DeviceOption)MicrophoneComboBox.SelectedItem).Id : null,
-            OutputFolder = _outputFolder
+            OutputFolder = _outputFolder,
+            // Crop the taskbar strip out of the video; it stays visible on screen.
+            Crop = ScreenHelper.GetTaskbarCrop(screen.Id)
         };
 
         _pendingScreenBounds = ScreenHelper.GetBoundsForDevice(screen.Id, this);
+        _pendingWorkArea = ScreenHelper.GetWorkAreaForDevice(screen.Id, this);
         _pendingCameraEnabled = WebcamCheckBox.IsChecked == true && WebcamComboBox.SelectedItem is DeviceOption;
         _pendingCameraIndex = _pendingCameraEnabled ? ((DeviceOption)WebcamComboBox.SelectedItem).Index : -1;
 
@@ -197,15 +198,14 @@ public partial class MainWindow : Window
         if (_pendingSettings is null)
             return;
 
-        // Get the app and taskbar out of the way, show the webcam bubble, then record.
+        // Get the app out of the way, show the webcam bubble, then record.
         WindowState = WindowState.Minimized;
-        TaskbarService.Hide();
 
         if (_pendingCameraEnabled)
         {
             try
             {
-                _webcamWindow = new WebcamOverlayWindow(_pendingScreenBounds, _pendingCameraIndex);
+                _webcamWindow = new WebcamOverlayWindow(_pendingWorkArea, _pendingCameraIndex);
                 _webcamWindow.Failed += (_, msg) => Dispatcher.Invoke(() => OnWebcamFailed(msg));
                 _webcamWindow.Show();
                 _webcamWindow.Start();
@@ -262,7 +262,7 @@ public partial class MainWindow : Window
         if (_controlBar != null)
             return;
 
-        _controlBar = new ControlBarWindow(_pendingScreenBounds);
+        _controlBar = new ControlBarWindow(_pendingWorkArea);
         _controlBar.StopRequested += (_, _) =>
         {
             if (_recordingService.IsRecording)
@@ -333,7 +333,6 @@ public partial class MainWindow : Window
         _pauseStartedUtc = null;
         _pausedAccumulated = TimeSpan.Zero;
 
-        TaskbarService.RestoreIfHidden();
         WindowState = WindowState.Normal;
         Activate();
     }
@@ -428,7 +427,6 @@ public partial class MainWindow : Window
 
         _webcamWindow?.StopAndClose();
         _controlBar?.Close();
-        TaskbarService.RestoreIfHidden();
         _recordingService.Dispose();
         base.OnClosed(e);
     }

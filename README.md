@@ -11,8 +11,9 @@ pour recommencer l'enregistrement en un clic.
 - **Micro en option.**
 - **Compte à rebours 3 · 2 · 1** affiché en plein écran avant le début de l'enregistrement
   (il n'apparaît pas dans la vidéo).
-- **L'app se minimise** et **la barre des tâches Windows est masquée** pendant l'enregistrement,
-  pour une capture propre.
+- **L'app se minimise** pendant l'enregistrement. La **barre des tâches reste visible et
+  utilisable à l'écran**, mais elle **n'apparaît pas dans la vidéo** : la capture est rognée
+  sur la zone de travail (l'écran sans la bande de la barre des tâches).
 - **Bouton Recommencer** : annule la vidéo en cours (elle n'est pas sauvegardée) et relance
   immédiatement un nouvel enregistrement avec les mêmes réglages.
 - **Ouverture automatique du dossier** avec la nouvelle vidéo sélectionnée dès l'arrêt.

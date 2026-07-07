@@ -62,7 +62,7 @@
 
     <!-- Floating pill -->
     <Border x:Name="RootBar" Background="#1E1E26" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-            CornerRadius="24" Padding="10,6" MouseLeftButtonDown="RootBar_MouseLeftButtonDown">
+            CornerRadius="24" Padding="10,6">
         <Border.Effect>
             <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.55" Color="Black"/>
         </Border.Effect>

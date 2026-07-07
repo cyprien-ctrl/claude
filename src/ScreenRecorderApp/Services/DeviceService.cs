@@ -8,7 +8,11 @@ namespace ScreenRecorderApp.Services;
 /// A selectable device. <see cref="Index"/> is the enumeration ordinal, used to open
 /// the webcam with OpenCV (which addresses cameras by index, not by name).
 /// </summary>
-public sealed record DeviceOption(string Id, string Label, int Index);
+public sealed record DeviceOption(string Id, string Label, int Index)
+{
+    // Shown in the ComboBox (the closed selection box falls back to ToString()).
+    public override string ToString() => Label;
+}
 
 public static class DeviceService
 {

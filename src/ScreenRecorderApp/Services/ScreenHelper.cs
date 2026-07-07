@@ -15,18 +15,38 @@ public readonly record struct ScreenBounds(double Left, double Top, double Width
     public double Bottom => Top + Height;
 }
 
+/// <summary>A crop rectangle in pixels, expressed relative to a display's top-left corner.</summary>
+public readonly record struct CropRect(int X, int Y, int Width, int Height);
+
 public static class ScreenHelper
 {
-    /// <summary>
-    /// Resolves the bounds of the screen whose device name matches (e.g. "\\.\DISPLAY1").
-    /// Falls back to the primary screen. Pixel bounds are converted to DIP using the
-    /// DPI of the supplied visual (correct on single-DPI setups; approximate across
-    /// mixed-DPI monitors).
-    /// </summary>
+    /// <summary>Full bounds of the matching screen (or primary), in DIP.</summary>
     public static ScreenBounds GetBoundsForDevice(string? deviceName, Visual dpiSource)
+        => ToDip(FindScreen(deviceName).Bounds, dpiSource);
+
+    /// <summary>
+    /// Work area (screen minus the taskbar) of the matching screen, in DIP. Used to place
+    /// the webcam bubble and control bar clear of the taskbar.
+    /// </summary>
+    public static ScreenBounds GetWorkAreaForDevice(string? deviceName, Visual dpiSource)
+        => ToDip(FindScreen(deviceName).WorkingArea, dpiSource);
+
+    /// <summary>
+    /// The recording crop (in pixels, relative to the display) that excludes the taskbar,
+    /// or null if this screen has no reserved taskbar area (nothing to crop).
+    /// </summary>
+    public static CropRect? GetTaskbarCrop(string? deviceName)
     {
         var screen = FindScreen(deviceName);
+        var b = screen.Bounds;
+        var wa = screen.WorkingArea;
+        if (wa == b)
+            return null;
+        return new CropRect(wa.X - b.X, wa.Y - b.Y, wa.Width, wa.Height);
+    }
 
+    private static ScreenBounds ToDip(System.Drawing.Rectangle r, Visual dpiSource)
+    {
         double scaleX = 1.0, scaleY = 1.0;
         try
         {
@@ -39,8 +59,7 @@ public static class ScreenHelper
             // Visual not yet connected to a presentation source: assume 100%.
         }
 
-        var b = screen.Bounds;
-        return new ScreenBounds(b.Left / scaleX, b.Top / scaleY, b.Width / scaleX, b.Height / scaleY);
+        return new ScreenBounds(r.Left / scaleX, r.Top / scaleY, r.Width / scaleX, r.Height / scaleY);
     }
 
     private static WinFormsScreen FindScreen(string? deviceName)
