@@ -20,14 +20,17 @@ pour recommencer l'enregistrement en un clic.
 
 ## Contrôle pendant l'enregistrement (important)
 
-Comme l'app se minimise **et** que la barre des tâches est masquée, l'arrêt se fait
-au clavier grâce à des raccourcis globaux :
+Comme l'app se minimise **et** que la barre des tâches est masquée, une petite
+**barre de contrôle flottante apparaît en bas à gauche** (façon Loom) avec : le
+chrono, un bouton **pause/reprendre**, **recommencer** et **arrêter**. Cette barre
+est visible à l'écran mais **exclue de l'enregistrement** (elle n'apparaît pas dans
+la vidéo) et peut être déplacée à la souris.
+
+Les mêmes actions sont aussi disponibles au clavier via des raccourcis globaux :
 
 - **Ctrl + Alt + S** : arrêter l'enregistrement
+- **Ctrl + Alt + P** : mettre en pause / reprendre
 - **Ctrl + Alt + R** : recommencer (annule la prise en cours et repart)
-
-Si ces raccourcis sont déjà pris par un autre logiciel, l'app vous le signale : vous
-pouvez alors revenir à la fenêtre avec **Alt + Tab** et cliquer sur *Arrêter*.
 
 ## Technique
 

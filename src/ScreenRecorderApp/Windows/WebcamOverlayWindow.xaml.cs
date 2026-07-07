@@ -7,6 +7,9 @@ using OpenCvSharp;
 using OpenCvSharp.WpfExtensions;
 using ScreenRecorderApp.Interop;
 using ScreenRecorderApp.Services;
+// OpenCvSharp also defines a `Window` type (its highgui window), which collides with
+// System.Windows.Window under `using OpenCvSharp;`. Alias the bare name to the WPF one.
+using Window = System.Windows.Window;
 
 namespace ScreenRecorderApp.Windows;
 

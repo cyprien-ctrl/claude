@@ -1,0 +1,96 @@
+<Window x:Class="ScreenRecorderApp.Windows.ControlBarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        Topmost="True"
+        SizeToContent="WidthAndHeight"
+        WindowStartupLocation="Manual">
+
+    <Window.Resources>
+        <!-- Compact round icon button -->
+        <Style x:Key="BarButton" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="20">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary stop button (red) -->
+        <Style x:Key="BarStopButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource DangerBrush}"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="20">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="{StaticResource DangerHoverBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Floating pill -->
+    <Border x:Name="RootBar" Background="#1E1E26" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+            CornerRadius="24" Padding="10,6" MouseLeftButtonDown="RootBar_MouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.55" Color="Black"/>
+        </Border.Effect>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <!-- Recording indicator + timer -->
+            <Ellipse x:Name="RecordingDot" Width="11" Height="11" Fill="Red" VerticalAlignment="Center" Margin="6,0,8,0">
+                <Ellipse.Triggers>
+                    <EventTrigger RoutedEvent="Loaded">
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.25"
+                                                 Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Ellipse.Triggers>
+            </Ellipse>
+            <TextBlock x:Name="TimerText" Text="0:00" FontSize="15" FontWeight="SemiBold" MinWidth="46"
+                       VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+
+            <Rectangle Width="1" Height="24" Fill="{StaticResource BorderBrush}" Margin="10,0"/>
+
+            <Button x:Name="PauseButton" Style="{StaticResource BarButton}" Content="⏸" Click="PauseButton_Click"
+                    ToolTip="Pause / Reprendre (Ctrl+Alt+P)"/>
+            <Button x:Name="RestartButton" Style="{StaticResource BarButton}" Content="⟳" FontSize="19" Click="RestartButton_Click"
+                    ToolTip="Recommencer : annule la prise en cours (Ctrl+Alt+R)"/>
+            <Button x:Name="StopButton" Style="{StaticResource BarStopButton}" Content="■" Margin="4,0,2,0" Click="StopButton_Click"
+                    ToolTip="Arrêter et enregistrer (Ctrl+Alt+S)"/>
+        </StackPanel>
+    </Border>
+</Window>

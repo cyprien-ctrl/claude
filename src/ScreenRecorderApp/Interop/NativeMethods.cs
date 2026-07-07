@@ -76,4 +76,37 @@ internal static class NativeMethods
         exStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
         SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
     }
+
+    /// <summary>Keep the window out of Alt+Tab but still clickable.</summary>
+    public static void MakeToolWindow(IntPtr hwnd)
+    {
+        int exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        exStyle |= WS_EX_TOOLWINDOW;
+        SetWindowLong(hwnd, GWL_EXSTYLE, exStyle);
+    }
+
+    // ---- Exclude a window from screen capture (Windows 10 2004+ / build 19041+) ----
+    public const uint WDA_NONE = 0x00000000;
+    public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
+    /// <summary>
+    /// Makes the window visible on screen but invisible to screen-capture APIs
+    /// (Desktop Duplication, Graphics Capture) — used for the recording control bar so it
+    /// doesn't appear in the video. No-op on older Windows where it isn't supported.
+    /// </summary>
+    public static void TryExcludeFromCapture(IntPtr hwnd)
+    {
+        try
+        {
+            SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+        }
+        catch
+        {
+            // Unsupported OS build: the bar will simply be visible in the recording.
+        }
+    }
 }

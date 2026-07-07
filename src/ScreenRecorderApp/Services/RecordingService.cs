@@ -43,6 +43,7 @@ public sealed class RecordingService : IDisposable
     private bool _isRestarting;
 
     public bool IsRecording { get; private set; }
+    public bool IsPaused { get; private set; }
 
     public event EventHandler? RecordingStarted;
     public event EventHandler<RecordingCompletedEventArgs>? RecordingCompleted;
@@ -64,12 +65,37 @@ public sealed class RecordingService : IDisposable
 
         _recorder.Record(outputPath);
         IsRecording = true;
+        IsPaused = false;
         RecordingStarted?.Invoke(this, EventArgs.Empty);
     }
 
     public void Stop()
     {
+        // Resuming first ensures the recorder finalizes cleanly if it was paused.
+        if (IsPaused)
+        {
+            _recorder?.Resume();
+            IsPaused = false;
+        }
         _recorder?.Stop();
+    }
+
+    public void Pause()
+    {
+        if (IsRecording && !IsPaused)
+        {
+            _recorder?.Pause();
+            IsPaused = true;
+        }
+    }
+
+    public void Resume()
+    {
+        if (IsRecording && IsPaused)
+        {
+            _recorder?.Resume();
+            IsPaused = false;
+        }
     }
 
     /// <summary>
@@ -80,6 +106,12 @@ public sealed class RecordingService : IDisposable
     {
         if (!IsRecording || _recorder is null)
             return;
+
+        if (IsPaused)
+        {
+            _recorder.Resume();
+            IsPaused = false;
+        }
 
         _isRestarting = true;
         _recorder.Stop();
