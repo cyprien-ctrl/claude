@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Windows.Threading;
 using ScreenRecorderLib;
 
 namespace ScreenRecorderApp.Services;
@@ -41,6 +42,9 @@ public sealed class RecordingErrorEventArgs(string error) : EventArgs
 /// </summary>
 public sealed class RecordingService : IDisposable
 {
+    // Captured on the UI thread at construction; used to marshal ScreenRecorderLib's
+    // native callbacks OFF their internal thread before touching/disposing the recorder.
+    private readonly Dispatcher _dispatcher;
     private Recorder? _recorder;
     private RecordingSettings? _activeSettings;
     private bool _isRestarting;
@@ -52,6 +56,11 @@ public sealed class RecordingService : IDisposable
     public event EventHandler<RecordingCompletedEventArgs>? RecordingCompleted;
     public event EventHandler<RecordingErrorEventArgs>? RecordingFailed;
 
+    public RecordingService()
+    {
+        _dispatcher = Dispatcher.CurrentDispatcher;
+    }
+
     public void Start(RecordingSettings settings)
     {
         if (IsRecording)
@@ -61,6 +70,8 @@ public sealed class RecordingService : IDisposable
 
         _activeSettings = settings;
         var outputPath = Path.Combine(settings.OutputFolder, $"Enregistrement_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.mp4");
+
+        DisposeRecorder(); // release any previous instance (safe: not on a callback thread here)
 
         _recorder = Recorder.CreateRecorder(BuildOptions(settings));
         _recorder.OnRecordingComplete += OnRecordingComplete;
@@ -120,38 +131,54 @@ public sealed class RecordingService : IDisposable
         _recorder.Stop();
     }
 
+    // These fire on ScreenRecorderLib's internal thread. We must NOT dispose the recorder
+    // here (Dispose would wait for this very thread and deadlock), so we hop off it first.
     private void OnRecordingComplete(object? sender, RecordingCompleteEventArgs e)
     {
-        IsRecording = false;
-        DetachAndDispose();
-
-        if (_isRestarting && _activeSettings is not null)
-        {
-            _isRestarting = false;
-            DeleteFileQuietly(e.FilePath);
-            Start(_activeSettings);
-            return;
-        }
-
-        RecordingCompleted?.Invoke(this, new RecordingCompletedEventArgs(e.FilePath));
+        var path = e.FilePath;
+        _dispatcher.BeginInvoke(new Action(() => HandleComplete(path)));
     }
 
     private void OnRecordingFailed(object? sender, RecordingFailedEventArgs e)
     {
-        IsRecording = false;
-        _isRestarting = false;
-        DetachAndDispose();
-        RecordingFailed?.Invoke(this, new RecordingErrorEventArgs(e.Error));
+        var error = e.Error;
+        _dispatcher.BeginInvoke(new Action(() => HandleFailed(error)));
     }
 
-    private void DetachAndDispose()
+    private void HandleComplete(string path)
+    {
+        IsRecording = false;
+        IsPaused = false;
+        DisposeRecorder(); // safe now: the callback thread has already returned
+
+        if (_isRestarting && _activeSettings is not null)
+        {
+            _isRestarting = false;
+            DeleteFileQuietly(path);
+            Start(_activeSettings);
+            return;
+        }
+
+        RecordingCompleted?.Invoke(this, new RecordingCompletedEventArgs(path));
+    }
+
+    private void HandleFailed(string error)
+    {
+        IsRecording = false;
+        IsPaused = false;
+        _isRestarting = false;
+        DisposeRecorder();
+        RecordingFailed?.Invoke(this, new RecordingErrorEventArgs(error));
+    }
+
+    private void DisposeRecorder()
     {
         if (_recorder is null)
             return;
 
         _recorder.OnRecordingComplete -= OnRecordingComplete;
         _recorder.OnRecordingFailed -= OnRecordingFailed;
-        _recorder.Dispose();
+        try { _recorder.Dispose(); } catch { /* best effort */ }
         _recorder = null;
     }
 
@@ -216,6 +243,6 @@ public sealed class RecordingService : IDisposable
 
     public void Dispose()
     {
-        DetachAndDispose();
+        DisposeRecorder();
     }
 }

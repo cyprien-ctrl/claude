@@ -1,11 +1,18 @@
 using System;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using ScreenRecorderApp.Interop;
 using ScreenRecorderApp.Services;
 
 namespace ScreenRecorderApp.Windows;
 
+/// <summary>
+/// Compact, click-through "3 · 2 · 1" overlay shown near the top of the target screen.
+/// It does not block the desktop, so the user can prepare their screen during the countdown.
+/// It closes before recording starts, so it never appears in the video.
+/// </summary>
 public partial class CountdownWindow : Window
 {
     private readonly DispatcherTimer _timer;
@@ -15,14 +22,13 @@ public partial class CountdownWindow : Window
     /// <summary>Raised once the countdown reaches zero and the window has fully closed.</summary>
     public event EventHandler? Completed;
 
-    public CountdownWindow(ScreenBounds bounds, int startFrom = 3)
+    public CountdownWindow(ScreenBounds screen, int startFrom = 3)
     {
         InitializeComponent();
 
-        Left = bounds.Left;
-        Top = bounds.Top;
-        Width = bounds.Width;
-        Height = bounds.Height;
+        // Top-center of the target screen, out of the way of the user's work.
+        Left = screen.Left + (screen.Width - Width) / 2;
+        Top = screen.Top + Math.Min(120, screen.Height * 0.12);
 
         _current = startFrom;
         NumberText.Text = _current.ToString();
@@ -35,6 +41,13 @@ public partial class CountdownWindow : Window
             AnimateNumber();
             _timer.Start();
         };
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        // Let mouse/keyboard pass through to whatever is underneath during the countdown.
+        NativeMethods.MakeClickThrough(new WindowInteropHelper(this).Handle);
     }
 
     private void OnTick(object? sender, EventArgs e)

@@ -9,8 +9,9 @@ pour recommencer l'enregistrement en un clic.
 - Enregistrement de l'écran sélectionné (utile si plusieurs moniteurs), au format MP4 (H.264).
 - **Caméra en option, incrustée en rond** (style Loom) en bas à droite de la vidéo.
 - **Micro en option.**
-- **Compte à rebours 3 · 2 · 1** affiché en plein écran avant le début de l'enregistrement
-  (il n'apparaît pas dans la vidéo).
+- **Compte à rebours 3 · 2 · 1** avant le début de l'enregistrement, affiché dans une petite
+  pastille **non bloquante** : vous pouvez continuer à utiliser votre PC pendant le décompte
+  (le décompte n'apparaît pas dans la vidéo).
 - **L'app se minimise** pendant l'enregistrement. La **barre des tâches reste visible et
   utilisable à l'écran**, mais elle **n'apparaît pas dans la vidéo** : la capture est rognée
   sur la zone de travail (l'écran sans la bande de la barre des tâches).

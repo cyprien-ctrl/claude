@@ -3,24 +3,21 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         AllowsTransparency="True"
-        Background="#B0000000"
+        Background="Transparent"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         Topmost="True"
+        Width="220" Height="220"
         WindowStartupLocation="Manual">
     <Grid>
-        <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
-            <Ellipse Width="220" Height="220" Fill="#22FFFFFF"/>
-            <Ellipse Width="220" Height="220" Stroke="#5B8CFF" StrokeThickness="4"/>
-            <TextBlock x:Name="NumberText" Text="3" FontSize="130" FontWeight="Bold"
-                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       RenderTransformOrigin="0.5,0.5">
-                <TextBlock.RenderTransform>
-                    <ScaleTransform x:Name="NumberScale" ScaleX="1" ScaleY="1"/>
-                </TextBlock.RenderTransform>
-            </TextBlock>
-        </Grid>
-        <TextBlock Text="L'enregistrement va démarrer…" FontSize="16" Foreground="#DDFFFFFF"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,320,0,0"/>
+        <Ellipse Width="200" Height="200" Fill="#E61E1E26"/>
+        <Ellipse Width="200" Height="200" Stroke="#5B8CFF" StrokeThickness="5"/>
+        <TextBlock x:Name="NumberText" Text="3" FontSize="120" FontWeight="Bold"
+                   Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"
+                   RenderTransformOrigin="0.5,0.5">
+            <TextBlock.RenderTransform>
+                <ScaleTransform x:Name="NumberScale" ScaleX="1" ScaleY="1"/>
+            </TextBlock.RenderTransform>
+        </TextBlock>
     </Grid>
 </Window>

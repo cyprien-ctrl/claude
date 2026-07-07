@@ -32,7 +32,6 @@ public partial class MainWindow : Window
 
     // Values captured when the user hits record, applied after the countdown finishes.
     private RecordingSettings? _pendingSettings;
-    private ScreenBounds _pendingScreenBounds;
     private ScreenBounds _pendingWorkArea;
     private bool _pendingCameraEnabled;
     private int _pendingCameraIndex;
@@ -178,19 +177,42 @@ public partial class MainWindow : Window
             Crop = ScreenHelper.GetTaskbarCrop(screen.Id)
         };
 
-        _pendingScreenBounds = ScreenHelper.GetBoundsForDevice(screen.Id, this);
         _pendingWorkArea = ScreenHelper.GetWorkAreaForDevice(screen.Id, this);
         _pendingCameraEnabled = WebcamCheckBox.IsChecked == true && WebcamComboBox.SelectedItem is DeviceOption;
         _pendingCameraIndex = _pendingCameraEnabled ? ((DeviceOption)WebcamComboBox.SelectedItem).Index : -1;
 
-        // Lock the UI and run the 3-2-1 countdown on the target screen.
+        // Lock the UI, clear the screen, then run the countdown.
         SettingsPanel.IsEnabled = false;
         RecordButton.IsEnabled = false;
         StatusText.Text = "Préparation…";
 
-        var countdown = new CountdownWindow(_pendingScreenBounds) { Owner = this };
+        // Minimize now so the user has a clear screen to arrange things during the countdown.
+        WindowState = WindowState.Minimized;
+
+        // Show the camera bubble during the countdown (framing); it continues into the recording.
+        StartWebcam();
+
+        var countdown = new CountdownWindow(_pendingWorkArea);
         countdown.Completed += (_, _) => StartActualRecording();
         countdown.Show();
+    }
+
+    private void StartWebcam()
+    {
+        if (!_pendingCameraEnabled)
+            return;
+
+        try
+        {
+            _webcamWindow = new WebcamOverlayWindow(_pendingWorkArea, _pendingCameraIndex);
+            _webcamWindow.Failed += (_, msg) => Dispatcher.Invoke(() => OnWebcamFailed(msg));
+            _webcamWindow.Show();
+            _webcamWindow.Start();
+        }
+        catch (Exception ex)
+        {
+            OnWebcamFailed(ex.Message);
+        }
     }
 
     private void StartActualRecording()
@@ -198,24 +220,7 @@ public partial class MainWindow : Window
         if (_pendingSettings is null)
             return;
 
-        // Get the app out of the way, show the webcam bubble, then record.
-        WindowState = WindowState.Minimized;
-
-        if (_pendingCameraEnabled)
-        {
-            try
-            {
-                _webcamWindow = new WebcamOverlayWindow(_pendingWorkArea, _pendingCameraIndex);
-                _webcamWindow.Failed += (_, msg) => Dispatcher.Invoke(() => OnWebcamFailed(msg));
-                _webcamWindow.Show();
-                _webcamWindow.Start();
-            }
-            catch (Exception ex)
-            {
-                OnWebcamFailed(ex.Message);
-            }
-        }
-
+        // The webcam bubble is already on screen; the app is already minimized. Just record.
         try
         {
             _recordingService.Start(_pendingSettings);
@@ -250,6 +255,9 @@ public partial class MainWindow : Window
         SettingsPanel.IsEnabled = false;
         StatusText.Text = "Enregistrement en cours…";
         ElapsedText.Text = "00:00:00";
+
+        // Keep the app window itself out of the video if the user brings it back up.
+        NativeMethods.TryExcludeFromCapture(new WindowInteropHelper(this).Handle);
 
         ShowControlBar();
         _controlBar?.SetPaused(false);
@@ -321,7 +329,7 @@ public partial class MainWindow : Window
         MessageBox.Show(this, error, "Erreur d'enregistrement", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
-    /// <summary>Closes the webcam bubble and control bar, restores the taskbar and brings the app back.</summary>
+    /// <summary>Closes the webcam bubble and control bar, and brings the app window back.</summary>
     private void TeardownRecordingChrome()
     {
         _webcamWindow?.StopAndClose();
@@ -332,6 +340,9 @@ public partial class MainWindow : Window
 
         _pauseStartedUtc = null;
         _pausedAccumulated = TimeSpan.Zero;
+
+        // Re-include the app window in captures now that recording is over.
+        NativeMethods.TryIncludeInCapture(new WindowInteropHelper(this).Handle);
 
         WindowState = WindowState.Normal;
         Activate();

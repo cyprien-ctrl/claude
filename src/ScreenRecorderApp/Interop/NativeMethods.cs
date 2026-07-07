@@ -109,4 +109,17 @@ internal static class NativeMethods
             // Unsupported OS build: the bar will simply be visible in the recording.
         }
     }
+
+    /// <summary>Undo <see cref="TryExcludeFromCapture"/> so the window is captured normally again.</summary>
+    public static void TryIncludeInCapture(IntPtr hwnd)
+    {
+        try
+        {
+            SetWindowDisplayAffinity(hwnd, WDA_NONE);
+        }
+        catch
+        {
+            // ignore
+        }
+    }
 }
