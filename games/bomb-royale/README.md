@@ -21,7 +21,13 @@ npx http-server -p 8099 -s .   # ou: python3 -m http.server 8099
 | Viser | Souris |
 | Passer la bombe | Espace (ou clic) — seulement si quelqu'un est à portée |
 | Dash (rechargeable) | Espace — **sauf** si tu portes la bombe |
-| Ouvrir une porte | E maintenu (1 s, ça fait du bruit) |
+| Objet slot 1 / slot 2 | **A** et **E** (AZERTY) · **Q** et **E** (QWERTY) · ou **1** et **2** |
+| Ouvrir une porte | F maintenu (1 s, ça fait du bruit) |
+
+> Les libellés affichés dans le HUD sont résolus depuis ta vraie disposition clavier
+> (`navigator.keyboard.getLayoutMap`), donc ils affichent les bonnes lettres.
+> A et Z eux-mêmes étaient impossibles : Z = avancer en ZQSD, A = gauche en WASD. A et E
+> encadrent la touche « avancer » dans les deux dispositions.
 
 ## Ce qui est implémenté
 
@@ -52,9 +58,26 @@ npx http-server -p 8099 -s .   # ou: python3 -m http.server 8099
 - Portée de passe : 90 / 120 / 170 px.
 - 1 à 7 bots.
 
-**Bonus au sol** (respawn 12 s)
-- `»` Vitesse (+45 %, 7 s) · `◉` Radar (tous les joueurs sur la minimap, 9 s) ·
-  `✂` Mèche courte (la prochaine passe donne −3,5 s au receveur).
+**Cubes mystères et objets** (façon Mario Kart)
+- Des cubes `?` tournent un peu partout, dont quatre posés **dans les goulets** : tentant,
+  mais c'est là qu'on se fait attraper. Respawn 8 s.
+- Tu portes **2 objets maximum** ; inventaire plein = le cube reste en place.
+- Le tirage est pondéré, et **pondéré différemment quand tu portes la bombe** : plus de
+  mobilité (turbo, fantôme) pour le chasseur, plus de pièges pour les autres.
+
+| Objet | Effet |
+|---|---|
+| **TURBO** | +50 % de vitesse, 7 s |
+| **FANTÔME** | traverse les murs 4,5 s — et tu ressors toujours au propre, jamais coincé |
+| **RADAR** | débloque la minimap 9 s et y montre tout le monde |
+| **MÈCHE COURTE** | ta prochaine passe coupe 3,5 s au receveur |
+| **COLLE** | tu poses une flaque derrière toi (ralentit) |
+| **PIÈGE** | tu poses un piège à ours derrière toi (stun 1,1 s, à usage unique) |
+| **SIRÈNE** | révèle 5 s tous les joueurs dans un rayon de 520 px |
+
+Les pièges ne sont plus posés dans le décor : ils viennent tous des cubes, et c'est toi
+qui choisis où les laisser. Un objet posé s'arme en 0,5 s (tu ne te piéges pas toi-même)
+et disparaît après 18 s.
 
 **Level design : des passages obligés**
 - 8 salles séparées par des cloisons percées. Chaque trou est un passage obligé, et chaque
@@ -79,13 +102,24 @@ npx http-server -p 8099 -s .   # ou: python3 -m http.server 8099
 - Sans la bombe : 620 px, les bords s'assombrissent et les ennemis lointains disparaissent.
 - Avec la bombe : 980 px. Le chasseur voit loin, la proie voit court.
 
-**Minimap**
-- Toi + le porteur de bombe toujours visibles. Les autres : seulement s'ils sont proches et
-  hors des buissons, ou révélés (piège sonore / radar).
+**Minimap : un privilège du porteur**
+- Si tu n'as pas la bombe, **tu n'as pas de minimap du tout**. Tu cours à l'aveugle.
+- Le porteur, lui, voit la carte et les fuyards — sauf ceux planqués dans les hautes herbes.
+- L'objet RADAR est le seul moyen de l'obtenir sans la bombe (9 s).
 
-**Mouvement / feel**
-- Dash directionnel (0,16 s, cooldown 2,2 s), squash & stretch, screen shake, particules,
-  caméra lissée qui suit la bombe en mode spectateur.
+**Mouvement**
+- Dash directionnel (0,16 s, cooldown 2,2 s).
+- Collisions avec **glissement tangentiel** : on ne perd que la composante qui rentre dans le
+  mur, donc on longe une paroi à pleine vitesse au lieu de s'y coller. Le dash suit la paroi
+  lui aussi au lieu de mourir dessus.
+
+**Juice**
+- Hit-stop (0,12 s sur l'explosion, 0,05 s sur une passe), punch de caméra (zoom élastique),
+  flash blanc, screen shake, confettis qui tournent, textes qui pop, traînées de dash et de
+  fantôme, squash & stretch, cubes qui tournent sur eux-mêmes.
+- Tic-tac qui double de cadence sous 5 s, vignette rouge pulsante et barre de mèche qui bat.
+- **Son entièrement généré** (WebAudio, aucun asset) : passe, réception, ramassage, dash,
+  explosion, tic-tac, fanfare de victoire.
 
 **IA bots — pathfinding A***
 - Grille de navigation 32 px, murs dilatés du rayon du joueur, A* 8 directions.
