@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HOT POTATO ROYALE - POC</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game" width="1120" height="660"></canvas>
+
+  <div id="menu" class="overlay">
+    <div class="panel">
+      <h1>HOT<span>POTATO</span>ROYALE</h1>
+      <p class="tag">Passe la bombe. Ou explose. POC jouable.</p>
+
+      <div class="opts">
+        <label>Adversaires (bots)
+          <input id="optBots" type="range" min="1" max="7" value="5" />
+          <b id="optBotsV">5</b>
+        </label>
+        <label>Mèche
+          <select id="optFuse">
+            <option value="carrier" selected>Par porteur (reset à chaque passe)</option>
+            <option value="global">Globale (compte à rebours unique)</option>
+          </select>
+        </label>
+        <label>Lancer
+          <select id="optThrow">
+            <option value="free" selected>Libre (rate = bombe au sol)</option>
+            <option value="rope">Ventouse + corde (rate = retour)</option>
+          </select>
+        </label>
+      </div>
+
+      <button id="btnPlay">JOUER</button>
+
+      <div class="keys">
+        <span><b>ZQSD / WASD</b> bouger</span>
+        <span><b>Souris</b> viser · <b>Clic maintenu</b> charger &amp; lancer</span>
+        <span><b>Espace</b> dash</span>
+        <span><b>E</b> ouvrir une porte</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="result" class="overlay hidden">
+    <div class="panel">
+      <h2 id="resultTitle">BOOM</h2>
+      <p id="resultSub"></p>
+      <button id="btnAgain">REJOUER</button>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
