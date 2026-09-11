@@ -9,16 +9,15 @@ const CFG = {
   player: { r: 20, speed: 250, accel: 1600, friction: 10 },
   dash: { speed: 760, time: 0.16, cooldown: 2.2 },
   bomb: {
-    fuseCarrier: 9,
-    fuseGlobal: 26,
+    // la bombe est TOUJOURS dans les mains de quelqu'un: on la passe au contact
+    fuseCarrier: 18,
+    fuseGlobal: 52,
     carrierSpeed: 1.28,      // le porteur court plus vite...
     blastRadius: 130,        // ...mais n'a pas de dash
-    throwMin: 420, throwMax: 1000, chargeTime: 0.75, quickPower: 0.62,
-    magnetRadius: 150,
-    magnetForce: 1500,
-    ropeLen: 420,
-    groundFriction: 1.6,
-    pickupGrace: 0.55,
+    passRadius: 120,         // portée de passe (réglable au menu)
+    passStun: 1.5,           // le receveur est figé, la mèche ne tourne pas encore
+    backPassLock: 2.0,       // interdit de la renvoyer tout de suite à l'expéditeur
+    passAnim: 0.2,
     respawnDelay: 2.0
   },
   vision: {
@@ -361,28 +360,30 @@ class Player {
     this.dashT = 0; this.dashCd = 0; this.dashDir = {x:1,y:0};
     this.slow = 0; this.stun = 0; this.revealed = 0; this.speedBoost = 0; this.radar = 0;
     this.shortFuse = 0; this.shortFuseSent = false;
-    this.charge = 0; this.charging = false; this.carrying = false;
+    this.carrying = false;
     this.inGrass = false; this.nearDoor = null;
     this.squash = 0; this.walkT = 0;
     this.ai = { path:null, node:0, repath:0, goal:null, think:0, doorT:0,
-                lastX:spawn.x, lastY:spawn.y, stuck:0, unstick:0, unstickA:0 };
+                lastX:spawn.x, lastY:spawn.y, stuck:0, unstick:0, unstickA:0, react:0 };
   }
   get speed(){
     let s = CFG.player.speed;
     if (this.carrying) s *= CFG.bomb.carrierSpeed;
     if (this.speedBoost>0) s *= CFG.bonus.speedMult;
     if (this.slow>0) s *= CFG.trap.slowFactor;
-    if (this.charging) s *= .6;
     return s;
   }
 }
 
 class Bomb {
   constructor(){
-    this.x=0; this.y=0; this.vx=0; this.vy=0; this.r=16;
-    this.carrier=null; this.lastCarrier=null; this.grace=0;
+    this.x=0; this.y=0; this.r=16;
+    this.carrier=null; this.lastCarrier=null;
     this.fuse=CFG.bomb.fuseCarrier; this.maxFuse=CFG.bomb.fuseCarrier;
-    this.homing=null; this.roped=false; this.thrower=null; this.armed=true;
+    this.armed=true;
+    this.freeze=0;        // mèche gelée tant que le receveur est figé
+    this.from=null;       // qui vient de la passer (interdit de lui renvoyer tout de suite)
+    this.fromLock=0;
   }
 }
 
@@ -401,7 +402,7 @@ const Input = {
       this.mouse.x = (e.clientX-r.left) * (canvas.width/r.width);
       this.mouse.y = (e.clientY-r.top)  * (canvas.height/r.height);
     });
-    canvas.addEventListener('mousedown', ()=>{ this.mouse.down=true; });
+    canvas.addEventListener('mousedown', ()=>{ this.mouse.down=true; this.pressed.Mouse=true; });
     addEventListener('mouseup', ()=>{ this.mouse.down=false; });
     addEventListener('blur', ()=>{ this.keys={}; this.mouse.down=false; });
   },
@@ -443,15 +444,21 @@ class Game {
   get alivePlayers(){ return this.players.filter(p=>p.alive); }
   announce(txt, t){ this.toast = {txt, t, max:t}; }
 
-  giveBombTo(p, reset){
+  giveBombTo(p, reset, from){
     const b = this.bomb;
     if (b.carrier) b.carrier.carrying = false;
-    b.carrier = p; b.homing = null; b.vx = b.vy = 0; b.roped = false;
-    p.carrying = true; p.charging = false; p.charge = 0;
+    b.carrier = p;
+    p.carrying = true;
+    // le receveur encaisse: figé, et la mèche ne repart qu'après
+    p.stun = Math.max(p.stun, CFG.bomb.passStun);
+    p.vx = p.vy = 0;
+    b.freeze = CFG.bomb.passStun;
+    b.from = from || null;
+    b.fromLock = from ? CFG.bomb.backPassLock + CFG.bomb.passStun : 0;
     if (this.opts.fuse === 'carrier'){
       let f = CFG.bomb.fuseCarrier;
       if (b.lastCarrier && b.lastCarrier.shortFuseSent){ f -= CFG.bonus.shortFuse; b.lastCarrier.shortFuseSent=false; }
-      b.fuse = Math.max(2.2, f); b.maxFuse = CFG.bomb.fuseCarrier;
+      b.fuse = Math.max(4, f); b.maxFuse = CFG.bomb.fuseCarrier;
     } else if (reset){
       b.fuse = this.globalFuse; b.maxFuse = this.globalFuse;
     }
@@ -551,7 +558,7 @@ class Game {
     p.squash = Math.max(0, p.squash-dt*4);
     p.carrying = (this.bomb.carrier === p);
 
-    let move = {x:0,y:0}, wantDash = false, wantDoor = false, aim = null, quickThrow = false;
+    let move = {x:0,y:0}, wantDash = false, wantDoor = false, aim = null, wantPass = false;
 
     if (p.stun > 0){ p.vx*=0.85; p.vy*=0.85; }
     else if (p.isHuman){
@@ -559,22 +566,16 @@ class Game {
       aim = { x: Input.mouse.x + this.cam.x, y: Input.mouse.y + this.cam.y };
       wantDoor = !!Input.keys.KeyE;
       if (p.carrying){
-        // porteur: pas de dash, ESPACE lance dans la direction visée
-        if (Input.consume('Space')) quickThrow = true;
-        if (Input.mouse.down){ p.charging = true; p.charge = Math.min(1, p.charge + dt/CFG.bomb.chargeTime); }
-        else if (p.charging){
-          this.throwBomb(p, Math.atan2(aim.y-p.y, aim.x-p.x), p.charge);
-          p.charging = false; p.charge = 0;
-        }
+        // porteur: pas de dash. ESPACE (ou clic) passe la bombe si quelqu'un est à portée
+        if (Input.consume('Space') || Input.consume('Mouse')) wantPass = true;
       } else {
-        p.charging = false; p.charge = 0;
         wantDash = !!Input.keys.Space;
       }
-      if (quickThrow) this.throwBomb(p, Math.atan2(aim.y-p.y, aim.x-p.x), CFG.bomb.quickPower);
+      if (wantPass && p.stun<=0) this.passBomb(p);
     } else {
       const cmd = this.botThink(p, dt);
       move = cmd.move; wantDash = cmd.dash && !p.carrying; aim = cmd.aim; wantDoor = cmd.door;
-      if (cmd.throwAngle !== null && p.carrying) this.throwBomb(p, cmd.throwAngle, cmd.power);
+      if (cmd.pass && p.carrying) this.passBomb(p);
     }
 
     this.tryDoor(p, wantDoor, dt);
@@ -648,90 +649,55 @@ class Game {
     }
   }
 
-  throwBomb(p, angle, power){
-    const b = this.bomb;
-    if (b.carrier !== p) return;
-    const sp = lerp(CFG.bomb.throwMin, CFG.bomb.throwMax, clamp(power,0,1));
-    b.carrier = null; p.carrying = false;
-    b.thrower = p; b.grace = CFG.bomb.pickupGrace;
-    b.x = p.x + Math.cos(angle)*(p.r+b.r+4); b.y = p.y + Math.sin(angle)*(p.r+b.r+4);
-    b.vx = Math.cos(angle)*sp + p.vx*.3; b.vy = Math.sin(angle)*sp + p.vy*.3;
-    b.roped = (this.opts.throwMode === 'rope');
-    b.homing = null;
-    p.squash = 1;
+  // Qui peut recevoir la bombe: le plus proche à portée, en ligne de vue,
+  // avec un bonus pour celui qu'on vise vraiment.
+  passTarget(p){
+    if (this.bomb.carrier !== p) return null;
+    const R = this.opts.passRadius;
+    let best = null, bestScore = 1e9;
+    for (const o of this.alivePlayers){
+      if (o === p) continue;
+      if (this.bomb.fromLock > 0 && o === this.bomb.from) continue;
+      const d = dist(p,o);
+      if (d > R) continue;
+      if (!this.nav.clearLine(p.x,p.y,o.x,o.y)) continue;
+      let da = Math.abs(Math.atan2(o.y-p.y, o.x-p.x) - p.face);
+      while (da > Math.PI) da = TAU - da;
+      const score = d * (da < 1.05 ? 0.6 : 1);   // on privilégie ce qu'on regarde
+      if (score < bestScore){ bestScore = score; best = o; }
+    }
+    return best;
+  }
+
+  passBomb(p){
+    const target = this.passTarget(p);
+    if (!target) return false;
     if (p.shortFuse > 0){ p.shortFuse--; p.shortFuseSent = true; }
-    this.fx.push({type:'ring', x:b.x, y:b.y, r:8, max:36, t:0, life:.25, color:'#fff'});
+    this.fx.push({type:'pass', ax:p.x, ay:p.y, bx:target.x, by:target.y, t:0, life:CFG.bomb.passAnim});
+    this.fx.push({type:'ring', x:target.x, y:target.y, r:12, max:64, t:0, life:.35, color:'#ff4d4d'});
+    this.giveBombTo(target, false, p);
+    p.squash = 1; target.squash = 1;
+    this.shake = Math.min(1, this.shake+.2);
+    if (target === this.me) this.announce('TU AS LA BOMBE !', 1.3);
+    else if (p === this.me) this.announce('PASSÉE À ' + target.name, 1);
+    return true;
   }
 
   updateBomb(dt){
     const b = this.bomb;
-    if (b.carrier || this.opts.fuse==='global'){
+    if (!b.armed) return;
+    b.fromLock = Math.max(0, b.fromLock - dt);
+    const c = b.carrier;
+    if (!c || !c.alive) return;
+
+    // la mèche ne repart qu'une fois le receveur remis de la passe
+    if (b.freeze > 0) b.freeze = Math.max(0, b.freeze - dt);
+    else {
       b.fuse -= dt;
       if (b.fuse <= 0){ this.explode(); return; }
     }
-    if (b.carrier){
-      const c = b.carrier, off = 26;
-      b.x = c.x + Math.cos(c.face)*off; b.y = c.y + Math.sin(c.face)*off - 10;
-      b.vx = b.vy = 0;
-      return;
-    }
-    if (!b.armed) return;
-
-    b.grace = Math.max(0, b.grace-dt);
-
-    let best=null, bestD=CFG.bomb.magnetRadius;
-    for (const p of this.alivePlayers){
-      if (b.grace>0 && p===b.thrower) continue;
-      const d = dist(b,p);
-      if (d < bestD && this.nav.clearLine(b.x,b.y,p.x,p.y)){ bestD=d; best=p; }
-    }
-    b.homing = best;
-    if (best){
-      const a = Math.atan2(best.y-b.y, best.x-b.x);
-      b.vx += Math.cos(a)*CFG.bomb.magnetForce*dt;
-      b.vy += Math.sin(a)*CFG.bomb.magnetForce*dt;
-      const sp = Math.hypot(b.vx,b.vy), cap = 520;
-      if (sp > cap){ b.vx = b.vx/sp*cap; b.vy = b.vy/sp*cap; }
-    } else {
-      const f = Math.max(0, 1 - CFG.bomb.groundFriction*dt);
-      b.vx *= f; b.vy *= f;
-    }
-
-    if (b.roped && b.thrower && b.thrower.alive && !best){
-      const d = dist(b, b.thrower);
-      if (d > CFG.bomb.ropeLen || Math.hypot(b.vx,b.vy) < 60){
-        const a = Math.atan2(b.thrower.y-b.y, b.thrower.x-b.x);
-        b.vx += Math.cos(a)*1800*dt; b.vy += Math.sin(a)*1800*dt;
-      }
-    }
-
-    b.x += b.vx*dt; b.y += b.vy*dt;
-
-    for (const w of this.level.walls){
-      if (w.kind !== 'wall' && w.kind !== 'door') continue;
-      const before = {x:b.x,y:b.y};
-      if (resolveCircleRect(b, b.r, w)){
-        if (Math.abs(b.x-before.x) > Math.abs(b.y-before.y)) b.vx = -b.vx*.55; else b.vy = -b.vy*.55;
-      }
-    }
-    const pre = {x:b.x,y:b.y};
-    if (this.collideDynamics(b, b.r)){
-      if (Math.abs(b.x-pre.x) > Math.abs(b.y-pre.y)) b.vx = -b.vx*.5; else b.vy = -b.vy*.5;
-    }
-    b.x = clamp(b.x, b.r, this.level.w-b.r); b.y = clamp(b.y, b.r, this.level.h-b.r);
-    if (b.x<=b.r||b.x>=this.level.w-b.r) b.vx*=-.55;
-    if (b.y<=b.r||b.y>=this.level.h-b.r) b.vy*=-.55;
-
-    for (const p of this.alivePlayers){
-      if (b.grace>0 && p===b.thrower) continue;
-      if (dist(b,p) < p.r+b.r+2){
-        this.giveBombTo(p);
-        p.squash = 1; this.shake = Math.min(1, this.shake+.25);
-        this.fx.push({type:'ring',x:p.x,y:p.y,r:14,max:60,t:0,life:.3,color:'#ff4d4d'});
-        if (p===this.me) this.announce('TU AS LA BOMBE !', 1.2);
-        break;
-      }
-    }
+    const off = 26;
+    b.x = c.x + Math.cos(c.face)*off; b.y = c.y + Math.sin(c.face)*off - 10;
   }
 
   explode(){
@@ -751,11 +717,14 @@ class Game {
     if (victims.some(v=>v.isHuman)) this.announce('TU AS EXPLOSÉ 💥', 2.5);
     else if (victims.length) this.announce(victims.map(v=>v.name).join(' + ') + ' explose !', 1.8);
 
-    b.carrier = null; b.thrower = null; b.homing = null; b.vx=b.vy=0; b.armed=false;
+    if (b.carrier) b.carrier.carrying = false;
+    b.carrier = null; b.from = null; b.fromLock = 0; b.armed = false;
     setTimeout(()=>{
       if (this.over || this.alivePlayers.length <= 1) return;
-      const target = pick(this.alivePlayers);
-      this.globalFuse = Math.max(10, this.globalFuse - 4);
+      // la bombe doit toujours être dans les mains de quelqu'un: le plus loin du cratère
+      const target = this.alivePlayers.slice()
+        .sort((a,z)=>Math.hypot(z.x-cx,z.y-cy)-Math.hypot(a.x-cx,a.y-cy))[0];
+      this.globalFuse = Math.max(18, this.globalFuse - 6);
       b.armed = true;
       this.giveBombTo(target, true);
       this.announce('NOUVELLE BOMBE → ' + target.name, 1.6);
@@ -813,7 +782,7 @@ class Game {
   // ------------------------------------------------------------ IA bots
   // Un bot choisit un objectif, demande un chemin A*, puis lisse le suivi.
   botThink(p, dt){
-    const out = { move:{x:0,y:0}, dash:false, aim:null, throwAngle:null, power:1, door:false };
+    const out = { move:{x:0,y:0}, dash:false, aim:null, pass:false, door:false };
     const b = this.bomb;
     const others = this.alivePlayers.filter(o=>o!==p);
     if (!others.length) return out;
@@ -829,14 +798,13 @@ class Game {
       }
       chase = best; goal = {x:best.x, y:best.y};
       out.aim = goal;
-      const clear = this.nav.clearLine(p.x,p.y,best.x,best.y);
+      // on colle à la cible et on passe dès qu'elle est à portée (petit temps de réaction)
       p.ai.think -= dt;
-      if (clear && dist(p,best) < 470 && p.ai.think<=0){
-        const lead = 0.22;
-        out.throwAngle = Math.atan2(best.y+best.vy*lead-p.y, best.x+best.vx*lead-p.x) + rand(-0.11,0.11);
-        out.power = clamp(dist(p,best)/700, .35, 1);
-        p.ai.think = 0.6;
-      }
+      if (this.passTarget(p)){
+        if (p.ai.react <= 0) p.ai.react = rand(0.10, 0.22);
+        p.ai.react -= dt;
+        if (p.ai.react <= 0){ out.pass = true; p.ai.react = 0; }
+      } else p.ai.react = 0;
     } else if (b.carrier){
       const c = b.carrier, d = dist(p, c);
       if (d < 480){
@@ -872,13 +840,6 @@ class Game {
         }
         goal = p.ai.goal;
       }
-    }
-
-    // éviter la bombe qui traîne au sol
-    if (!hasBomb && !b.carrier && b.armed && dist(p,b) < 210){
-      goal = { x: clamp(p.x + (p.x-b.x)*2, 60, this.level.w-60),
-               y: clamp(p.y + (p.y-b.y)*2, 60, this.level.h-60) };
-      p.ai.repath = 0;
     }
 
     // --- chemin
@@ -1285,15 +1246,6 @@ class Game {
     const label = p.name + (p.shortFuse?' ✂':'');
     ctx.strokeText(label, p.x, p.y - p.r - 26); ctx.fillText(label, p.x, p.y - p.r - 26);
 
-    if (p.charging && p.charge>0.02){
-      ctx.fillStyle='rgba(0,0,0,.5)'; roundRect(ctx,p.x-26,p.y+p.r+8,52,8,4); ctx.fill();
-      ctx.fillStyle='#ffd84d'; roundRect(ctx,p.x-24,p.y+p.r+10,48*p.charge,4,2); ctx.fill();
-      const a = p.face, sp = lerp(CFG.bomb.throwMin, CFG.bomb.throwMax, p.charge);
-      ctx.setLineDash([8,8]); ctx.strokeStyle='rgba(255,255,255,.6)'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.moveTo(p.x,p.y);
-      ctx.lineTo(p.x+Math.cos(a)*sp*0.35, p.y+Math.sin(a)*sp*0.35); ctx.stroke();
-      ctx.setLineDash([]);
-    }
     if (p===this.me && p.nearDoor && p.nearDoor.solid){
       ctx.font='bold 13px Verdana'; ctx.fillStyle='#ffd84d'; ctx.textAlign='center';
       ctx.fillText('[E] ouvrir (bruyant)', p.x, p.y - p.r - 44);
@@ -1302,29 +1254,46 @@ class Game {
 
   drawBomb(ctx){
     const b = this.bomb;
-    if (!b.armed) return;
+    if (!b.armed || !b.carrier) return;
     const t = this.time;
     const danger = b.fuse / Math.max(1,b.maxFuse);
-    const pulse = 1 + Math.sin(t*(12 - danger*8))*0.12;
-    if (b.roped && !b.carrier && b.thrower && b.thrower.alive){
-      ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=3; ctx.setLineDash([6,6]);
-      ctx.beginPath(); ctx.moveTo(b.thrower.x, b.thrower.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    const frozen = b.freeze > 0;
+    const pulse = frozen ? 1 : 1 + Math.sin(t*(12 - danger*8))*0.12;
+
+    // cible de passe: à qui ça part si on appuie
+    const target = this.passTarget(b.carrier);
+    if (target && (b.carrier === this.me || dist(this.me, b.carrier) < this.visionRadius)){
+      ctx.save();
+      ctx.strokeStyle = '#b6ff5c'; ctx.lineWidth = 4; ctx.globalAlpha = .85;
+      ctx.setLineDash([10,8]); ctx.lineDashOffset = -t*30;
+      ctx.beginPath(); ctx.moveTo(b.carrier.x, b.carrier.y); ctx.lineTo(target.x, target.y); ctx.stroke();
       ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(target.x, target.y, target.r + 12 + Math.sin(t*9)*3, 0, TAU); ctx.stroke();
+      ctx.restore();
+    } else if (b.carrier === this.me){
+      // portée de passe: on montre le rayon quand personne n'est attrapable
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 3; ctx.setLineDash([6,10]);
+      ctx.beginPath(); ctx.arc(b.carrier.x, b.carrier.y, this.opts.passRadius, 0, TAU); ctx.stroke();
+      ctx.restore();
     }
-    if (b.homing){
-      ctx.strokeStyle='rgba(255,80,80,.5)'; ctx.lineWidth=4;
-      ctx.beginPath(); ctx.arc(b.x,b.y, CFG.bomb.magnetRadius*0.5 + Math.sin(t*10)*6, 0, TAU); ctx.stroke();
-    }
+
     ctx.save();
     ctx.translate(b.x,b.y); ctx.scale(pulse,pulse);
     ctx.fillStyle='rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(0,b.r+6,b.r,b.r*.4,0,0,TAU); ctx.fill();
     ctx.fillStyle='#2b2340'; ctx.beginPath(); ctx.arc(0,0,b.r,0,TAU); ctx.fill();
-    ctx.fillStyle= danger<0.3 ? '#ff4d4d' : '#5a4f7a';
+    ctx.fillStyle = frozen ? '#4a4570' : (danger<0.3 ? '#ff4d4d' : '#5a4f7a');
     ctx.beginPath(); ctx.arc(-5,-5,b.r*.45,0,TAU); ctx.fill();
     ctx.strokeStyle='#c9a86a'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.moveTo(0,-b.r); ctx.quadraticCurveTo(10,-b.r-12, 4,-b.r-20); ctx.stroke();
-    ctx.fillStyle = Math.sin(t*30)>0 ? '#ffd84d' : '#ff8b4d';
-    ctx.beginPath(); ctx.arc(4,-b.r-22, 5+Math.random()*2, 0, TAU); ctx.fill();
+    if (frozen){
+      // mèche pas encore allumée
+      ctx.fillStyle='rgba(255,255,255,.5)';
+      ctx.beginPath(); ctx.arc(4,-b.r-22, 4, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = Math.sin(t*30)>0 ? '#ffd84d' : '#ff8b4d';
+      ctx.beginPath(); ctx.arc(4,-b.r-22, 5+Math.random()*2, 0, TAU); ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -1341,6 +1310,11 @@ class Game {
         const g = ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,r);
         g.addColorStop(0,'#fff'); g.addColorStop(.4,'#ffd84d'); g.addColorStop(.75,'#ff6b3d'); g.addColorStop(1,'rgba(255,80,60,0)');
         ctx.fillStyle=g; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,TAU); ctx.fill();
+      } else if (f.type==='pass'){
+        const x = lerp(f.ax,f.bx,k), y = lerp(f.ay,f.by,k) - Math.sin(k*Math.PI)*34;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle='#2b2340'; ctx.beginPath(); ctx.arc(x,y,15,0,TAU); ctx.fill();
+        ctx.fillStyle='#ffd84d'; ctx.beginPath(); ctx.arc(x+4,y-18,5,0,TAU); ctx.fill();
       } else if (f.type==='part'){
         ctx.globalAlpha = 1-k; ctx.fillStyle=f.color;
         roundRect(ctx,f.x-6,f.y-6,12,12,4); ctx.fill();
@@ -1374,9 +1348,11 @@ class Game {
     roundRect(ctx,bx,by,bw*pct,22,11); ctx.fill();
     ctx.font='bold 14px Verdana'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle='#fff';
-    const who = b.carrier ? (b.carrier===this.me?'TOI':b.carrier.name) : 'au sol';
+    const who = b.carrier ? (b.carrier===this.me?'TOI':b.carrier.name) : '—';
     const mode = this.opts.fuse==='carrier' ? 'MÈCHE PORTEUR' : 'MÈCHE GLOBALE';
-    ctx.fillText(`${mode} · ${b.fuse>0?b.fuse.toFixed(1):'0.0'}s · ${who}`, W/2, by+11);
+    const label = b.freeze>0 ? `MÈCHE EN ATTENTE · ${who} encaisse` 
+                             : `${mode} · ${b.fuse>0?b.fuse.toFixed(1):'0.0'}s · ${who}`;
+    ctx.fillText(label, W/2, by+11);
 
     ctx.textAlign='left';
     ctx.fillStyle='rgba(20,12,45,.65)'; roundRect(ctx,18,18,170,30,15); ctx.fill();
@@ -1387,9 +1363,11 @@ class Game {
     const carrying = this.me.carrying;
     ctx.fillStyle='rgba(20,12,45,.65)'; roundRect(ctx,18,H-56,170,38,19); ctx.fill();
     if (carrying){
-      ctx.fillStyle = '#ff5c5c'; roundRect(ctx,24,H-50,158,26,13); ctx.fill();
-      ctx.fillStyle='#20123f'; ctx.font='bold 12px Verdana'; ctx.textAlign='center';
-      ctx.fillText('ESPACE : LANCER', 103, H-37);
+      const tgt = this.passTarget(this.me);
+      ctx.fillStyle = tgt ? '#b6ff5c' : 'rgba(255,92,92,.35)';
+      roundRect(ctx,24,H-50,158,26,13); ctx.fill();
+      ctx.fillStyle = tgt ? '#20123f' : '#fff'; ctx.font='bold 12px Verdana'; ctx.textAlign='center';
+      ctx.fillText(tgt ? 'ESPACE : PASSER à '+tgt.name : 'APPROCHE QUELQU\'UN', 103, H-37);
     } else {
       const dcd = this.me.dashCd/CFG.dash.cooldown;
       ctx.fillStyle = dcd<=0 ? '#5cf1ff' : 'rgba(92,241,255,.3)';
@@ -1401,6 +1379,7 @@ class Game {
     let cx = 200;
     const chips = [];
     if (carrying) chips.push(['PORTEUR : +VITESSE, PAS DE DASH','#ff8b4d']);
+    if (this.me.stun>0 && carrying) chips.push(['RÉCEPTION… '+this.me.stun.toFixed(1)+'s','#ff5c5c']);
     if (this.me.speedBoost>0) chips.push(['VITESSE '+this.me.speedBoost.toFixed(0)+'s','#5cf1ff']);
     if (this.me.radar>0) chips.push(['RADAR '+this.me.radar.toFixed(0)+'s','#b6ff5c']);
     if (this.me.shortFuse>0) chips.push(['MÈCHE COURTE x'+this.me.shortFuse,'#ff8b4d']);
@@ -1477,10 +1456,6 @@ class Game {
         ctx.beginPath(); ctx.arc(px,py, 6+Math.sin(this.time*8)*3, 0, TAU); ctx.stroke();
       }
     }
-    if (!this.bomb.carrier && this.bomb.armed){
-      ctx.fillStyle='#ff4d4d';
-      ctx.beginPath(); ctx.arc(mx+this.bomb.x*sx, my+this.bomb.y*sy, 4, 0, TAU); ctx.fill();
-    }
     ctx.restore();
   }
 }
@@ -1510,7 +1485,7 @@ class Game {
     const opts = {
       bots: parseInt(botsRange.value,10),
       fuse: document.getElementById('optFuse').value,
-      throwMode: document.getElementById('optThrow').value
+      passRadius: parseInt(document.getElementById('optPass').value,10)
     };
     game = new Game(canvas, opts);
     window.__game = game;   // debug console

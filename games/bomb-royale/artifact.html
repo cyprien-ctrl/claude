@@ -47,7 +47,7 @@ canvas{cursor:crosshair;touch-action:none}
   <div id="menu" class="overlay">
     <div class="panel">
       <h1>HOT<span>POTATO</span>ROYALE</h1>
-      <p class="tag">Passe la bombe. Ou explose. POC jouable.</p>
+      <p class="tag">Colle-toi à quelqu'un, refile-lui la bombe. Ou explose.</p>
 
       <div class="opts">
         <label>Adversaires (bots)
@@ -60,10 +60,11 @@ canvas{cursor:crosshair;touch-action:none}
             <option value="global">Globale (compte à rebours unique)</option>
           </select>
         </label>
-        <label>Lancer
-          <select id="optThrow">
-            <option value="free" selected>Libre (rate = bombe au sol)</option>
-            <option value="rope">Ventouse + corde (rate = retour)</option>
+        <label>Portée de passe
+          <select id="optPass">
+            <option value="90">Courte — 90 px (il faut vraiment coller)</option>
+            <option value="120" selected>Normale — 120 px</option>
+            <option value="170">Longue — 170 px (plus permissif)</option>
           </select>
         </label>
       </div>
@@ -72,8 +73,8 @@ canvas{cursor:crosshair;touch-action:none}
 
       <div class="keys">
         <span><b>ZQSD / WASD</b> bouger</span>
-        <span><b>Souris</b> viser · <b>Clic maintenu</b> charger un lancer long</span>
-        <span><b>Espace</b> dash — ou <b>lancer</b> quand tu portes la bombe</span>
+        <span><b>Souris</b> viser (choisit à qui tu passes)</span>
+        <span><b>Espace</b> dash — ou <b>passer la bombe</b> quand tu la portes</span>
         <span><b>E</b> ouvrir une porte (1 s, ça fait du bruit)</span>
       </div>
     </div>

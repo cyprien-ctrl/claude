@@ -19,29 +19,37 @@ npx http-server -p 8099 -s .   # ou: python3 -m http.server 8099
 |---|---|
 | Bouger | ZQSD / WASD / flèches |
 | Viser | Souris |
-| Charger & lancer la bombe | Clic maintenu puis relâcher (plus long = plus loin) |
+| Passer la bombe | Espace (ou clic) — seulement si quelqu'un est à portée |
 | Dash (rechargeable) | Espace — **sauf** si tu portes la bombe |
-| Lancer la bombe droit devant | Espace (quand tu la portes) |
 | Ouvrir une porte | E maintenu (1 s, ça fait du bruit) |
 
 ## Ce qui est implémenté
 
+**La bombe ne touche jamais le sol**
+- Elle est **toujours** dans les mains de quelqu'un. Pas de lancer dans le vide, pas de bombe
+  qui traîne : c'est un jeu de chat, pas de tir.
+- Pour t'en débarrasser, colle-toi à un adversaire (120 px par défaut, en ligne de vue) et
+  appuie sur `Espace` : la bombe part automatiquement sur lui. La cible verrouillée est
+  reliée à toi par un trait vert ; sinon tu vois ton rayon de portée en pointillés.
+- Tu vises avec la souris pour **choisir** entre deux adversaires à portée : celui que tu
+  regardes est privilégié.
+- Le receveur est **figé 1,5 s** et la mèche **ne redémarre qu'après** — ça lui laisse le
+  temps d'encaisser, et à toi celui de décoller.
+- Tu ne peux pas la renvoyer à celui qui vient de te la donner pendant 2 s : il faut trouver
+  quelqu'un d'autre.
+
 **Le porteur de bombe**
 - Court plus vite (+28 %) mais **perd son dash** : il fonce, il ne s'échappe pas.
-- `Espace` lance la bombe dans la direction visée ; le clic maintenu reste là pour doser un
-  lancer long.
 
 **Core loop**
-- Bombe portée par un joueur, mèche visible, explosion → élimination (zone de blast : les
-  voisins sautent aussi). Dernier survivant gagne.
-- Lancer visé avec charge de puissance ; rebonds sur les murs.
-- **Aimant** : bombe au sol ou en vol qui passe à moins de 150 px d'un joueur (en ligne de
-  vue) → elle se dirige vers lui et il la récupère. Grâce de 0,55 s pour le lanceur.
+- Mèche de 18 s. À zéro : explosion, le porteur est éliminé et les joueurs dans les 130 px
+  sautent avec lui. 2 s plus tard la bombe réapparaît chez le survivant le plus éloigné du
+  cratère — il y a toujours une bombe en jeu. Dernier survivant gagne.
 
 **Options (menu)**
-- Mèche **par porteur** (reset à chaque passe, défaut) ou **globale** (compte à rebours unique
-  qui se raccourcit à chaque manche).
-- Lancer **libre** ou **ventouse + corde** : si la bombe ne trouve personne, elle revient au lanceur.
+- Mèche **par porteur** (18 s, reset à chaque passe, défaut) ou **globale** (52 s, compte à
+  rebours unique qui se raccourcit à chaque manche).
+- Portée de passe : 90 / 120 / 170 px.
 - 1 à 7 bots.
 
 **Bonus au sol** (respawn 12 s)
@@ -87,9 +95,10 @@ npx http-server -p 8099 -s .   # ou: python3 -m http.server 8099
 - Suivi lissé (*string pulling*) + anti-blocage : un bot qui n'avance plus pendant 0,55 s
   repart en crabe et recalcule. Mesuré : ~3 % du temps à l'arrêt sur 7 bots (contre ~25 %
   avec l'ancien évitement par raycast).
-- Porteur : chasse la cible la plus proche en pondérant la ligne de vue, lance avec
-  anticipation et erreur de visée. Non-porteur : fuit vers un point atteignable, dash de
-  panique, ramasse les bonus, ouvre les portes qui le bloquent.
+- Porteur : chasse la cible la plus proche en pondérant la ligne de vue et passe dès qu'elle
+  est à portée (0,10–0,22 s de temps de réaction pour laisser une chance). Non-porteur : fuit
+  vers un point atteignable, dash de panique, ramasse les bonus, ouvre les portes qui le
+  bloquent.
 
 ## Hors périmètre du POC (prochaines étapes)
 
